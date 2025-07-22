@@ -1,0 +1,1 @@
+Object detection app, the can run the model on images/videos. Live detection is suported via usb or DroidCam App. The detected objects have an associated bounding box with the threshold and the estimated image to the object. 
