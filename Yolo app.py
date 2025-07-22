@@ -11,16 +11,17 @@ import threading
 
 
 class YOLOApp:
-    #Cu bind key sa se opreasca programu
+    #esc key used to stop the execution
+    
     def bind_keys(self):
         self.root.bind("<Escape>", self.stop_detection)
-    #Face Cleanup
+    # Cleanup the resources
     def stop_detection(self, event=None):
         print("Detectia orpita de mine.")
         self.running = False
         self.cleanup()
 
-    #initializeaza aplicatia , creeaza intefata, incarca modelul
+    #inititalize the app, and creates the GUI
     def __init__(self, root, model_path):
         self.root = root
         self.root.title("YOLO Detection App")
@@ -33,13 +34,13 @@ class YOLOApp:
         print("CUDA available:", torch.cuda.is_available())
         print("cuDNN enabled:", torch.backends.cudnn.enabled)
 
-        #incarca modelul direct pe gpu
+        #Run the model directly on gpu
         self.model = YOLO(model_path, task='detect').to('cuda')
         print("Model device:", next(self.model.model.parameters()).device)
 
-        # Numele claselor detectate de mode
+        #Name of the classes
         self.labels = self.model.names
-        #sursa, record,path
+        #source, record,path
         self.cap = None
         self.record = False
         self.recorder = None
@@ -47,15 +48,15 @@ class YOLOApp:
         self.running = False
         self.original_fps = 30
 
-        #ui pt afisare
+        #ui for displaying
         self.panel = tk.Label(root)
         self.panel.pack()
 
-        #butoane
+        #buttons
         btn_frame = tk.Frame(root)
         btn_frame.pack(pady=10)
 
-        #lista de clase detectabile
+        #list of the detectable classes
         self.selected_classes = []
         self.class_listbox = tk.Listbox(root, selectmode="multiple", exportselection=False, height=10)
         self.class_listbox.pack(pady=5)
@@ -74,28 +75,28 @@ class YOLOApp:
         self.select_output_button = tk.Button(self.root, text="Select Output ", command=self.select_output_file)
         self.select_output_button.pack(pady=10)
 
-        # adauga sound checkbox
+        # add a sound checkbox
         self.sound_var = tk.IntVar()
         tk.Checkbutton(root, text=" Sound", variable=self.sound_var).pack(pady=5)
         self.sound_enabled = False
-        self.sound_cooldown = {}  # cooldown pe clasa
+        self.sound_cooldown = {}  # cooldown per class
 
         self.bind_keys()
 
-   # estimare distanta fata de obiect
+   # estimate the distance to the object
 
     def estimate_distance(self, pixel_height, real_height_m=0.6, focal_length_px=700):
         if pixel_height <= 0:
             return None
         return round((focal_length_px * real_height_m) / pixel_height, 2)
 
-    #face update la lista cu clase selectate pt detectie
+    #update the list for with the classes used for detection
     def update_selected_classes(self):
         selected_indices = self.class_listbox.curselection()
         self.selected_classes = [int(i) for i in selected_indices]
         print("Clasa selectata id:", self.selected_classes)
 
-    #selecteaza path u unde salveaza detectia
+    #selct te path where you wanna save the detection
     def select_output_file(self):
         output_file = filedialog.asksaveasfilename(defaultextension=".avi",
                                                    filetypes=[("AVI files", "*.avi"), ("MP4 files", "*.mp4")])
@@ -103,7 +104,7 @@ class YOLOApp:
             self.output_path = output_file
             print(f"Selected output file: {self.output_path}")
 
-    #incarca imaginea pt detectie
+    #load the image for detection
     def load_image(self):
         path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.jpeg *.png *.bmp")])
         if not path:
@@ -112,7 +113,7 @@ class YOLOApp:
         result = self.model(image, verbose=False)[0]
         self.display_frame(image, result)
 
-    #incarca fisier video (proceseaza frame by frame)
+    #load a video file ( frame by frame processing)
     def load_video(self):
         path = filedialog.askopenfilename(filetypes=[("Videos", "*.mp4 *.avi *.mov *.mkv")])
         if not path:
@@ -123,7 +124,7 @@ class YOLOApp:
         self.prepare_video_writer()
         self.process_video()
 
-    #gui popup pt detectia live
+    #gui popup for live detection
     def live_detection_popup(self):
         popup = tk.Toplevel(self.root)
         popup.title("Live Detection Settings")
@@ -150,7 +151,7 @@ class YOLOApp:
         port_entry.insert(0, "4747")
         port_entry.pack()
 
-        #porneste detectia pe live in fucntie de sursa
+        #run the live detection on the selected "source"
         def start_live():
             if source_var.get() == "usb":
                 self.cap = cv2.VideoCapture(0)
@@ -168,7 +169,7 @@ class YOLOApp:
         tk.Button(popup, text="Start Live ", command=start_live).pack(pady=10)
         toggle_inputs()
 
-    #pt inregistrarea video
+    #video recording
     def prepare_video_writer(self):
         self.record = bool(self.record_var.get())
         if not self.cap or not self.cap.isOpened():
@@ -199,7 +200,7 @@ class YOLOApp:
             else:
                 print("Eroare la record")
 
-    #proceseaza frame-urile si face detectia
+    #process the fames and makes the detection
     def process_video(self):
         if not self.running or self.cap is None or not self.cap.isOpened():
             self.cleanup()
@@ -209,7 +210,7 @@ class YOLOApp:
         if not ret:
             self.cleanup()
             return
-        #calculeaza fps urile
+        #fps calculation
         current_time = time.time()
         instant_fps = 1.0 / (current_time - self.last_time) if self.last_time else 0
         self.fps_list.append(instant_fps)
@@ -218,16 +219,16 @@ class YOLOApp:
         self.fps = sum(self.fps_list) / len(self.fps_list) if self.fps_list else 0
         self.last_time = current_time
 
-        #ruleaza modelu pe cadru curent
+        #run the model on current frame
         results = self.model(frame, verbose=False)[0]
         display_frame = frame.copy()
         self.display_frame(display_frame, results)
-        #daca record e activat salveaza cadru
+        #if the record is on the frame is saved
         if self.record and self.recorder:
             self.recorder.write(display_frame)
-        #se programeaza urmatoru cadru
+        #the next frame is processed
         self.root.after(1, self.process_video)
-    #face cleanup pe toate resursele
+    #cleanup
     def cleanup(self):
         if self.cap:
             self.cap.release()
@@ -241,15 +242,15 @@ class YOLOApp:
         self.panel.config(image='', text="Detectie terminata")
         self.panel.image = None
 
-    #face sunet pentru clasa detectata
+    #makes a sound when the class is detected
     def play_beep_sound(self, cls):
         def beep():
             print(f"Playing sound pt clasa {cls}")
-            winsound.Beep(1000, 500)  # frq 1000Hz, durata 500ms
-            self.sound_cooldown[cls] = time.time() + 5  # cooldown de 5 secunde
+            winsound.Beep(1000, 500)  # frq 1000Hz, duration 500ms
+            self.sound_cooldown[cls] = time.time() + 5  # cooldown of 5 seconds
         threading.Thread(target=beep, daemon=True).start()
 
-    #afisseaza frame u curent cu bodunding box urile si numele clasei
+    #display the current frame with the class name and the threshold
     def display_frame(self, frame, results):
         current_time = time.time()
         self.sound_enabled = bool(self.sound_var.get())
@@ -258,11 +259,11 @@ class YOLOApp:
             conf = det.conf.item()
             cls = int(det.cls.item())
 
-            #ignora clasel neselectte
+            #ignores the unselected classes
             if self.selected_classes and cls not in self.selected_classes:
                 continue
 
-                #treshold
+                # threshold
             if conf > 0.5:
                 box_height = xyxy[3] - xyxy[1]
                 distance_m = self.estimate_distance(box_height)
@@ -278,12 +279,12 @@ class YOLOApp:
                         self.play_beep_sound(cls)
 
               
-        #afiseaza fps urile
+        #displays the fps 
         fps_text = f"FPS: {self.fps:.2f}"
         cv2.putText(frame, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
         
-        #face conversia cadrului la rgb si i da display in ui
+        #frame conversion
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
         imgtk = ImageTk.PhotoImage(image=img)
@@ -292,7 +293,7 @@ class YOLOApp:
 
 #main 
 if __name__ == "__main__":
-    model_path = r"C:\Users\ASUS ROG\Desktop\Model For the app\model_for_the_app\my_model.pt"
+    model_path = r"Path to the model"
     if not os.path.exists(model_path):
         print("Model ne gasit!!!.")
     else:
@@ -300,8 +301,4 @@ if __name__ == "__main__":
         app = YOLOApp(root, model_path)
         root.mainloop()
 
-    #modele
-#"C:\Users\ASUS ROG\Desktop\Model For the app\model_for_the_app\my_model.pt"
-
-#"C:\Users\ASUS ROG\Desktop\Model For the app\model_for_the_app\my_model.pt" yolo8L
-#"C:\Users\ASUS ROG\Desktop\modelyolo8nano\my_model (3)\my_model.pt" yolo8nano
+ 
